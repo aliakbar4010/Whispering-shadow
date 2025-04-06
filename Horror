@@ -1,0 +1,173 @@
+<!-- HTML structure remains same as previous code -->
+
+<script>
+  const canvas = document.getElementById("gameCanvas");
+  const ctx = canvas.getContext("2d");
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+
+  const flashlight = document.getElementById("flashlight");
+  const inventoryUI = document.getElementById("inventory");
+  const pauseMenu = document.getElementById("pauseMenu");
+  const scream = document.getElementById("scream");
+
+  document.addEventListener('mousemove', (e) => {
+    flashlight.style.left = e.clientX - 100 + 'px';
+    flashlight.style.top = e.clientY - 100 + 'px';
+  });
+
+  setInterval(() => {
+    const size = 180 + Math.random() * 40;
+    flashlight.style.width = size + 'px';
+    flashlight.style.height = size + 'px';
+  }, 100);
+
+  const keys = {};
+  let hasKey = false;
+  let jumpscare = false;
+  let paused = false;
+  let currentRoom = 0;
+
+  const totalRooms = 25;
+  const rooms = [];
+
+  for (let i = 0; i < totalRooms; i++) {
+    rooms.push({
+      keyObj: { x: 200 + Math.random() * (canvas.width - 300), y: 150 + Math.random() * (canvas.height - 300), size: 15, collected: false },
+      door: { x: canvas.width - 100, y: canvas.height / 2, width: 50, height: 100, unlocked: false }
+    });
+  }
+
+  const player = { x: 100, y: 100, size: 20, speed: 3 };
+  const enemy = {
+    x: 500,
+    y: 500,
+    size: 30,
+    speed: 1.5,
+    state: 'patrol',
+    patrolDir: 1
+  };
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      paused = !paused;
+      pauseMenu.style.display = paused ? 'flex' : 'none';
+    }
+    keys[e.key] = true;
+  });
+
+  document.addEventListener('keyup', (e) => keys[e.key] = false);
+
+  function drawPlayer() {
+    ctx.fillStyle = "white";
+    ctx.fillRect(player.x, player.y, player.size, player.size);
+  }
+
+  function drawKey() {
+    const keyObj = rooms[currentRoom].keyObj;
+    if (!keyObj.collected) {
+      ctx.fillStyle = "yellow";
+      ctx.fillRect(keyObj.x, keyObj.y, keyObj.size, keyObj.size);
+    }
+  }
+
+  function drawDoor() {
+    const door = rooms[currentRoom].door;
+    ctx.fillStyle = door.unlocked ? "green" : "red";
+    ctx.fillRect(door.x, door.y, door.width, door.height);
+  }
+
+  function drawEnemy() {
+    ctx.fillStyle = "purple";
+    ctx.fillRect(enemy.x, enemy.y, enemy.size, enemy.size);
+  }
+
+  function updateEnemy() {
+    const dx = player.x - enemy.x;
+    const dy = player.y - enemy.y;
+    const distance = Math.sqrt(dx * dx + dy * dy);
+
+    if (distance < 200) {
+      enemy.state = 'chase';
+    } else {
+      enemy.state = 'patrol';
+    }
+
+    if (enemy.state === 'chase') {
+      const angle = Math.atan2(dy, dx);
+      enemy.x += Math.cos(angle) * enemy.speed;
+      enemy.y += Math.sin(angle) * enemy.speed;
+    } else {
+      enemy.x += enemy.patrolDir * 1;
+      if (enemy.x < 100 || enemy.x > canvas.width - 100) enemy.patrolDir *= -1;
+    }
+
+    if (Math.abs(player.x - enemy.x) < 20 && Math.abs(player.y - enemy.y) < 20 && !jumpscare) {
+      jumpscare = true;
+      scream.play();
+      alert("The Shadow got you...");
+      location.reload();
+    }
+  }
+
+  function checkRoomTransition() {
+    if (player.x < 0 && currentRoom > 0) {
+      currentRoom--;
+      player.x = canvas.width - player.size;
+      resetEnemy();
+    } else if (player.x > canvas.width && currentRoom < totalRooms - 1) {
+      currentRoom++;
+      player.x = 0;
+      resetEnemy();
+    }
+  }
+
+  function resetEnemy() {
+    enemy.x = 500;
+    enemy.y = 500;
+    enemy.state = 'patrol';
+  }
+
+  function update() {
+    if (keys['w']) player.y -= player.speed;
+    if (keys['s']) player.y += player.speed;
+    if (keys['a']) player.x -= player.speed;
+    if (keys['d']) player.x += player.speed;
+
+    checkRoomTransition();
+
+    const keyObj = rooms[currentRoom].keyObj;
+    const door = rooms[currentRoom].door;
+
+    if (!keyObj.collected && Math.abs(player.x - keyObj.x) < 20 && Math.abs(player.y - keyObj.y) < 20) {
+      hasKey = true;
+      keyObj.collected = true;
+    }
+
+    if (hasKey && Math.abs(player.x - door.x) < 50 && Math.abs(player.y - door.y) < 100) {
+      door.unlocked = true;
+    }
+
+    inventoryUI.textContent = `Key: ${hasKey ? "✅" : "❌"} | Room: ${currentRoom + 1} / ${totalRooms}`;
+
+    updateEnemy();
+  }
+
+  function draw() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    drawPlayer();
+    drawKey();
+    drawDoor();
+    drawEnemy();
+  }
+
+  function gameLoop() {
+    if (!paused) {
+      update();
+      draw();
+    }
+    requestAnimationFrame(gameLoop);
+  }
+
+  gameLoop();
+</script>
